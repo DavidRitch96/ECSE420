@@ -56,8 +56,12 @@ public class DiningPhilosophers {
 		}
 		
 		public void eat() {
+			System.out.println("Philosopher "+i+" is waiting for left chopstick.");
 			leftChop.lock();
+			System.out.println("Philosopher "+i+" picked up left chopstick.");
+			System.out.println("Philosopher "+i+" is waiting for right chopstick.");
 			if (rightChop.tryLock()){
+				System.out.println("Philosopher "+i+" picked up right chopstick.");
 				System.out.println("Philosopher "+i+" is eating.");
 				try {
 					Thread.sleep((long)(Math.random() * 1000));
@@ -67,6 +71,7 @@ public class DiningPhilosophers {
 				leftChop.unlock();
 				rightChop.unlock();
 			} else {
+				System.out.println("Philosopher "+i+" is dropping left chopstick.");
 				leftChop.unlock();
 				
 			}
@@ -74,8 +79,9 @@ public class DiningPhilosophers {
 		}
 		
 		public void think() {
+			System.out.println("Philosopher "+i+" is thinking.");
 			try {
-				Thread.sleep((long)(2+Math.random() * 1000));
+				Thread.sleep((long)(200+Math.random() * 800));
 			} catch(InterruptedException e) {
 			    System.out.println("Think thread interrupted");
 			}
@@ -85,28 +91,3 @@ public class DiningPhilosophers {
 	}
 
 }
-
-
-/*
- * 
- * left chopstick is always locked first
- * then the philosopher tries to lock the righ chopstick
- * 
- * solutions for deadlock
- * -Releasing all resources if the eat operation cannot be started
- * 		Before eating, the left chopstick is always locked first. the, philosopher tries to lock the right chopstick. If cant lock right, release left and sleep for random amount of time.
- * 
- * Making starvation free
- * -solution-> each philosopher must wait a while before eating again
- * -another soln-> each philosopher takes care of his neighbors. If neighbors are waiting, he will wake them when he is fininshed eating
- * 
- * -another soln-> using javas built in thing
- *  
- *  
- *  4.1
- *  
- *  Sn = (1/ (s+((1-s)/n))), lim Sn n->inf = ?
- *  
- *  4.2/4.3
- *  
- *  Sn = (1/ (s+((1-s)/n))), Sn' = (1/ ((s/k)+((1-(s/k))/n)))*/
