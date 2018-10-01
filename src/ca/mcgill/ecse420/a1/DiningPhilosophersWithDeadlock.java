@@ -1,11 +1,8 @@
 package ca.mcgill.ecse420.a1;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class DiningPhilosophersWithDealock {
+public class DiningPhilosophersWithDeadlock {
 	public static final int NUM_PHILOSOPHERS = 5;
 
 	

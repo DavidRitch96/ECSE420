@@ -1,30 +1,38 @@
 package ca.mcgill.ecse420.a1;
 
-import java.util.concurrent.Executor;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import static java.util.concurrent.Executors.newFixedThreadPool;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 import java.util.concurrent.TimeUnit;
 
 public class MatrixMultiplication {
 
-    private static final int NUMBER_THREADS = 10;
+    //private static final int NUMBER_THREADS = 10;
     private static final int MATRIX_SIZE = 2000;
     
     
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
             // Generate two random matrices, same size
-            double[][] a = generateRandomMatrix(111, 22);
-            double[][] b = generateRandomMatrix(22, 123);
-            //double[][] rslt = sequentialMultiplyMatrix(a, b);
-            double[][] rslt = parallelMultiplyMatrix(a, b);
             
-            printMatrix(a);
-            printMatrix(b);
-            printMatrix(rslt);
+            
+            BufferedWriter writer = new BufferedWriter(new FileWriter("VariedMatrixSize.csv"));
+            writer.write("matrixSize,msSequential,msParallel(n=8)");
+            writer.newLine();
+            for (int i : new int[] {100, 200, 500, 1000, 2000, 4000}) {
+            	double[][] a = generateRandomMatrix(i, i);
+                double[][] b = generateRandomMatrix(i, i);
+            	System.out.println(i);
+            	writer.write(i+","+timeMatrixMultiplication(false, a, b, 0)+","+timeMatrixMultiplication(true, a, b, 8));
+            	writer.newLine();
+            }
+            writer.close();
+            //System.out.println("Sequential: " + timeMatrixMultiplication(false, a, b));
+            //System.out.println("Parallel: " + timeMatrixMultiplication(true, a, b));
     }
 
     /**
@@ -53,7 +61,7 @@ public class MatrixMultiplication {
      * @param b is the second matrix
      * @return the result of the multiplication
      * */
-    public static double[][] parallelMultiplyMatrix(double[][] a, double[][] b) {
+    public static double[][] parallelMultiplyMatrix(double[][] a, double[][] b, int threads) {
         double[][] result = new double[a.length][b[0].length];
         
         class DotProductTask implements Runnable {
@@ -72,14 +80,19 @@ public class MatrixMultiplication {
             }
         }
         
-        ExecutorService executor = newFixedThreadPool(NUMBER_THREADS);
+        ExecutorService executor = newFixedThreadPool(threads);
         for(int i = 0; i < result.length; i++) {
             for (int j = 0; j < result[0].length; j++) {
                 executor.execute(new DotProductTask(i, j));
             }
         }
         executor.shutdown();
-        //executor.awaitTermination(,);
+        try {
+			executor.awaitTermination(120, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
         return result;
         
         
@@ -112,6 +125,24 @@ public class MatrixMultiplication {
             System.out.println("|");
         }
         System.out.println();
+    }
+    
+    /**
+     * Times the computation of the multiplication of matrices a and b
+     * @param isParallel - true if the computation is to be parallelized, false otherwise
+     * @param a - the matrix multiplicand
+     * @param b - the matrix multiplier
+     * @return the time taken to complete the multiplication, in milliseconds
+     */
+    public static long timeMatrixMultiplication(Boolean isParallel, double[][] a, double[][] b, int threads) {
+    	long startTime = System.currentTimeMillis();
+    	if (isParallel)
+    		parallelMultiplyMatrix(a, b, threads); //this blocks until the computation is complete
+    	else
+    		sequentialMultiplyMatrix(a, b); //this also blocks until the computation is complete
+    	long endTime = System.currentTimeMillis();
+    	
+    	return endTime - startTime;
     }
 
 }
