@@ -60,15 +60,10 @@ public class DiningPhilosophers {
 			if (rightChop.tryLock()){
 				System.out.println("Philosopher "+i+" picked up right chopstick.");
 				System.out.println("Philosopher "+i+" is eating.");
-				try {
-					Thread.sleep((long)(Math.random() * 1000));
-				} catch(InterruptedException e) {
-				    System.out.println("Eat thread interrupted");
-				}
 				leftChop.unlock();
 				rightChop.unlock();
 			} else {
-				System.out.println("Philosopher "+i+" is dropping left chopstick.");
+				System.out.println("*********Philosopher "+i+" is dropping left chopstick.");
 				leftChop.unlock(); //he didn't couldn't get the right chopstick so he drops the left one
 				
 			}
@@ -78,7 +73,7 @@ public class DiningPhilosophers {
 		public void think() {
 			System.out.println("Philosopher "+i+" is thinking.");
 			try {
-				Thread.sleep((long)(200+Math.random() * 800)); //sleep to avoid starvation
+				Thread.sleep((long)(500)); //sleep to avoid starvation
 			} catch(InterruptedException e) {
 			    System.out.println("Think thread interrupted");
 			}
