@@ -1,14 +1,40 @@
 package ca.mcgill.ecse420.a2;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import java.lang.Thread;
 
 public class FilterLock implements Lock {
 
+  // declare
+  private AtomicInteger[] level;
+  private AtomicInteger[] victim;
+  final int n;
+
+  public FilterLock(int n) {
+    // initialize
+    this.n = n;
+    level = new AtomicInteger[n];
+    victim = new AtomicInteger[n];
+    for (int i =1; i < n; i++) {
+      level[i] = new AtomicInteger(0);
+    }
+  }
+  
   @Override
   public void lock() {
-    // TODO Auto-generated method stub
+    int i = (int) Thread.currentThread().getId();
+    for (int L = 1; L < n; L++) {
+      level[i].set(L);
+      victim[i].set(i);
+      for (int j = 0; j < n; j++ ) {
+        while ((j != i) && (level[j].get() >= L && victim[L].get() == i)) {
+          // wait in spin
+        }
+      }
+    }
     
   }
 
@@ -38,8 +64,8 @@ public class FilterLock implements Lock {
 
   @Override
   public void unlock() {
-    // TODO Auto-generated method stub
-    
+    int i = (int) Thread.currentThread().getId();
+    level[i].set(0);
   }
 
 }
