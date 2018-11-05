@@ -18,30 +18,37 @@ public class FilterLock implements Lock {
     this.n = n;
     level = new AtomicInteger[n];
     victim = new AtomicInteger[n];
-    for (int i =1; i < n; i++) {
-      level[i] = new AtomicInteger(0);
+    for (int i = 0; i < n; i++) {
+      level[i] = new AtomicInteger();
+      victim[i] = new AtomicInteger();
     }
   }
   
   @Override
   public void lock() {
-    int i = (int) Thread.currentThread().getId();
+    int i = (int) Thread.currentThread().getId() % n;
     for (int L = 1; L < n; L++) {
       level[i].set(L);
-      victim[i].set(i);
+      victim[L].set(i);
       for (int j = 0; j < n; j++ ) {
-        while ((j != i) && (level[j].get() >= L && victim[L].get() == i)) {
+        while ((j != i)
+            && (level[j].get() >= L
+            && victim[L].get() == i)) {
           // wait in spin
         }
       }
     }
-    
+  }
+  
+  @Override
+  public void unlock() {
+    int i = (int) Thread.currentThread().getId() % n;
+    level[i].set(0);
   }
 
   @Override
   public void lockInterruptibly() throws InterruptedException {
     // TODO Auto-generated method stub
-    
   }
 
   @Override
@@ -61,11 +68,4 @@ public class FilterLock implements Lock {
     // TODO Auto-generated method stub
     return false;
   }
-
-  @Override
-  public void unlock() {
-    int i = (int) Thread.currentThread().getId();
-    level[i].set(0);
-  }
-
 }

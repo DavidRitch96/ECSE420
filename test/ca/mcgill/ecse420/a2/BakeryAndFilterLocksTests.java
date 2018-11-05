@@ -11,11 +11,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class BakeryLockTest {
+class BakeryAndFilterLocksTests {
 
-  final int N = 10;
+  final int N = 9;
   int balance = 0;
-  BakeryLockTest account;
+  BakeryAndFilterLocksTests account;
   
   public int getBalance() {
     return balance;
@@ -25,9 +25,11 @@ class BakeryLockTest {
     this.balance = balance;
   }
 
+  
+  // TEST METHODS
   @BeforeEach
   void setUp() throws Exception {
-    account = new BakeryLockTest();
+    account = new BakeryAndFilterLocksTests();
   }
 
   @AfterEach
@@ -35,10 +37,9 @@ class BakeryLockTest {
   }
 
   @Test
-  void testLock() {
+  void testBakeryLock() {
     
     Lock myBakeryLock = new BakeryLock(N);
-    // Thread threads[] = new Thread[N];
     ExecutorService executor = newFixedThreadPool(N);
     
     
@@ -54,31 +55,46 @@ class BakeryLockTest {
       e.printStackTrace();
     }
     
-    assertEquals(10, account.getBalance());
+    assertEquals(N, account.getBalance());
     
   }
 
   @Test
-  void testUnlock() {
+  void testFilterLock() {
     
-    fail("Not yet implemented");
+    Lock myFilterLock = new FilterLock(N);
+    ExecutorService executor = newFixedThreadPool(N);
+    
+    
+    for (int i = 0; i < N; i++) {
+      executor.execute(new IncrementBalanceTask(account, 1, myFilterLock));
+    }
+    
+    executor.shutdown();
+    try {
+      executor.awaitTermination(5, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    
+    assertEquals(N, account.getBalance());
   }
 
 }
 
 class IncrementBalanceTask implements Runnable {
-  BakeryLockTest account;
+  BakeryAndFilterLocksTests account;
   int transaction;
   Lock lock;
   
-  public IncrementBalanceTask(BakeryLockTest account, int transaction, Lock lock) {
+  public IncrementBalanceTask(BakeryAndFilterLocksTests account, int transaction, Lock lock) {
     this.account = account;
     this.transaction = transaction;
     this.lock = lock;
   }
   
   public void run() {
-    
     // acquire lock
     lock.lock();
     
@@ -88,7 +104,7 @@ class IncrementBalanceTask implements Runnable {
         + Thread.currentThread().getId()+" reads Balance = "+openingBalance);
     System.out.flush();
     
-    // simulate doing some important checks
+    // simulate doing some important checks before finalizing transaction
     try {
       Thread.sleep(20);
     } catch (InterruptedException e) {
