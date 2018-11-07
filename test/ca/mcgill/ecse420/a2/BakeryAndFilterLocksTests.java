@@ -1,21 +1,26 @@
 package ca.mcgill.ecse420.a2;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+public class BakeryAndFilterLocksTests {
 
-class BakeryAndFilterLocksTests {
-
-  final int N = 9;
+  final int N = 4;
   int balance = 0;
   BakeryAndFilterLocksTests account;
+  
+  public static void main(String[] args) throws Exception {
+    // new instance of our tests
+    BakeryAndFilterLocksTests tests = new BakeryAndFilterLocksTests();
+    
+    tests.setUp();
+    tests.testBakeryLock();
+    
+    tests.setUp();
+    tests.testFilterLock();
+  }
   
   public int getBalance() {
     return balance;
@@ -24,63 +29,70 @@ class BakeryAndFilterLocksTests {
   public void setBalance(int balance) {
     this.balance = balance;
   }
-
   
-  // TEST METHODS
-  @BeforeEach
-  void setUp() throws Exception {
+  
+  // methods for testing
+  void setUp() {
     account = new BakeryAndFilterLocksTests();
   }
 
-  @AfterEach
-  void tearDown() throws Exception {
-  }
-
-  @Test
   void testBakeryLock() {
     
+    // new lock
     Lock myBakeryLock = new BakeryLock(N);
     ExecutorService executor = newFixedThreadPool(N);
     
-    
+    // create a bunch of increment tasks
     for (int i = 0; i < N; i++) {
       executor.execute(new IncrementBalanceTask(account, 1, myBakeryLock));
     }
     
+    // wait for executor to shut down
     executor.shutdown();
     try {
       executor.awaitTermination(5, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     
-    assertEquals(N, account.getBalance());
+    // validate output
+    if (N == account.getBalance()) {
+      System.out.println("BakeryLock Test Passed!");
+    } else {
+      System.err.println("BakeryLock Test Failed! Expected: " + N + " Actual: "
+          +account.getBalance());
+    }
     
   }
 
-  @Test
+  
   void testFilterLock() {
     
+    // new lock
     Lock myFilterLock = new FilterLock(N);
     ExecutorService executor = newFixedThreadPool(N);
     
-    
+    // create a bunch of increment tasks
     for (int i = 0; i < N; i++) {
       executor.execute(new IncrementBalanceTask(account, 1, myFilterLock));
     }
     
+    // wait for executor to shut down
     executor.shutdown();
     try {
       executor.awaitTermination(5, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     
-    assertEquals(N, account.getBalance());
+    // validate output
+    if (N == account.getBalance()) {
+      System.out.println("FilterLock Test Passed!");
+    } else {
+      System.err.println("FilterLock Test Failed! Expected: " + N + " Actual: " 
+          + account.getBalance());
+    }
   }
-
 }
 
 class IncrementBalanceTask implements Runnable {
