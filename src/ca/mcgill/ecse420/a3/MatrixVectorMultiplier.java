@@ -12,11 +12,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MatrixVectorMultiplier {
 
   public static void main(String[] args) throws InterruptedException, ExecutionException {
-    final int N = 500;
+    final int N = 1000;
     double[][] M = generateSquareMatrix(N);
     double[] v = generateVector(N);
     
@@ -29,13 +30,13 @@ public class MatrixVectorMultiplier {
     long startTime = System.nanoTime();
     multiplySequentially(M, v);
     long endTime = System.nanoTime();
-    System.out.println("Took " + (endTime - startTime) + " ns.");
+    System.out.println("Took " + (endTime - startTime)/1000000 + " ms.");
     
     System.out.println("Multiplying in parallel...");
     startTime = System.nanoTime();
     multiplyParallel(M, v);
     endTime = System.nanoTime();
-    System.out.println("Took " + (endTime - startTime) + " ns.");
+    System.out.println("Took " + (endTime - startTime)/1000000 + " ms.");
 
   }
   
@@ -68,34 +69,83 @@ public class MatrixVectorMultiplier {
     return r;
   }
   
-  public static double[] multiplyParallel(double[][] a, double[] x) throws InterruptedException, ExecutionException {
+  public static Double[] multiplyParallel(double[][] a, double[] x) throws InterruptedException, ExecutionException {
     double[] r = new double[x.length];
+    
+    Double[] qq = new Double[x.length];
+    
+    class TinyTask implements Runnable {
+      int rowstart, rowend, colstart, colend;
+      ExecutorService exc;
+
+      public TinyTask(int rowstart, int rowend, int colstart, int colend, ExecutorService exc) {
+        super();
+        this.rowstart = rowstart;
+        this.rowend = rowend;
+        this.colstart = colstart;
+        this.colend = colend;
+        this.exc = exc;
+      }
+      
+      public void run() {
+        if (colend - colstart <= 1 && rowend - rowstart <= 1) { // base case
+          synchronized(qq[colstart]) {
+            qq[colstart] += a[rowstart][colstart]*x[colstart];
+          }
+        } else if (colend - colstart <= 1) {
+          int mid = (rowend + rowstart)/2;
+          exc.submit(new TinyTask(rowstart, mid, colstart, colend, exc));
+          exc.submit(new TinyTask(mid, rowend, colstart, colend, exc));
+        } else {
+          int mid = (colend + colstart)/2;
+          exc.submit(new TinyTask(rowstart, rowend, colstart, mid, exc));
+          exc.submit(new TinyTask(rowstart, rowend, mid, colend, exc));
+        }
+      }
+      
+    }
+    
+    ExecutorService exc = Executors.newCachedThreadPool();
+    TinyTask tt = new TinyTask(0, x.length, 0, x.length, exc);
+    tt.run();
+    //exc.shutdown();
+//    try {
+//      //exc.awaitTermination(240, TimeUnit.SECONDS);
+//    } catch (InterruptedException e) {
+//      // e.printStackTrace();
+//    }
+    return qq;
+    
+    
+    
+    
+    
     
     
     
     // each task is responsible for computing one element of the product vector
-    ExecutorService executor = Executors.newCachedThreadPool(); // newFixedThreadPool(r.length * r.length);
-    ArrayList<Future<Double>> futures;
-    futures = new ArrayList<Future<Double>>();
-//    CompletionService<Double> completionService = new ExecutorCompletionService<Double>(executor);
-    for(int i = 0; i < r.length; i++) {
-      futures.add(executor.submit(new DotProductTask(a[i], x, 0, x.length, executor)));
-    }
-    
-    // shut down the thread pool manager and wait for the last task to complete
-//    executor.shutdown();
-//    try {
-//      executor.awaitTermination(120, TimeUnit.SECONDS);
-//    } catch (InterruptedException e) {
-//      e.printStackTrace();
+//    ExecutorService executor = Executors.newCachedThreadPool(); // newFixedThreadPool(r.length * r.length);
+//    ArrayList<Future<Double>> futures;
+//    futures = new ArrayList<Future<Double>>();
+////    CompletionService<Double> completionService = new ExecutorCompletionService<Double>(executor);
+//    for(int i = 0; i < r.length; i++) {
+//      futures.add(executor.submit(new DotProductTask(a[i], x, 0, x.length, executor)));
 //    }
-    
-    for (int i = 0; i < r.length; i++) {
-      // System.out.println("getting futures at " + i);
-      r[i] = futures.get(i).get();
-    }
-    executor.shutdown();
-    return r;
+//    
+//    // shut down the thread pool manager and wait for the last task to complete
+////    executor.shutdown();
+////    try {
+////      executor.awaitTermination(120, TimeUnit.SECONDS);
+////    } catch (InterruptedException e) {
+////      e.printStackTrace();
+////    }
+//    
+//    for (int i = 0; i < r.length; i++) {
+//      // System.out.println("getting futures at " + i);
+//      r[i] = futures.get(i).get();
+//    }
+//    executor.shutdown();
+    // return r;
   }
   
   //computes the dot product of a[row] and x, from start to finish.
