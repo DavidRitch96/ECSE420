@@ -1,30 +1,20 @@
 package ca.mcgill.ecse420.a3;
 
-import static java.util.concurrent.Executors.newFixedThreadPool;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MatrixVectorMultiplier {
 
   public static void main(String[] args) throws InterruptedException, ExecutionException {
-    final int N = 1000;
+    final int N = 2000;
     double[][] M = generateSquareMatrix(N);
     double[] v = generateVector(N);
     
-    
-//    System.out.println(Arrays.deepToString(M));
-//    System.out.println(Arrays.toString(v));
-//    System.out.println(Arrays.toString(multiplyParallel(M, v)));
+    // sequential
     System.out.println("N = " + N);
     System.out.println("Multiplying sequentially...");
     long startTime = System.nanoTime();
@@ -32,6 +22,7 @@ public class MatrixVectorMultiplier {
     long endTime = System.nanoTime();
     System.out.println("Took " + (endTime - startTime)/1000000 + " ms.");
     
+    //parallel
     System.out.println("Multiplying in parallel...");
     startTime = System.nanoTime();
     multiplyParallel(M, v);
@@ -64,16 +55,24 @@ public class MatrixVectorMultiplier {
       for (int j = 0; j < x.length; j++) { // for each column
         r[i] += a[i][j] * x[j];
       }
-      // System.out.print(i + " of " + a.length + "\r");
     }
     return r;
   }
   
-  public static Double[] multiplyParallel(double[][] a, double[] x) throws InterruptedException, ExecutionException {
+  public static double[] multiplyParallel(double[][] a, double[] x) throws InterruptedException, ExecutionException {
     double[] r = new double[x.length];
     
-    Double[] qq = new Double[x.length];
+    // to lock elements in the output array while we update them
+    Lock[] locks = new ReentrantLock[x.length];
+    for (int i = 0; i < x.length; i++) {
+      locks[i] = new ReentrantLock();
+    }
     
+    // to keep track of when we're done
+    CountDownLatch latch = new CountDownLatch(x.length*x.length);
+    
+    
+    // main task class
     class TinyTask implements Runnable {
       int rowstart, rowend, colstart, colend;
       ExecutorService exc;
@@ -89,100 +88,36 @@ public class MatrixVectorMultiplier {
       
       public void run() {
         if (colend - colstart <= 1 && rowend - rowstart <= 1) { // base case
-          synchronized(qq[colstart]) {
-            qq[colstart] += a[rowstart][colstart]*x[colstart];
-          }
-        } else if (colend - colstart <= 1) {
+          
+          // lock the value we want to update. update, then unlock
+          locks[colstart].lock();
+          r[colstart] += a[rowstart][colstart]*x[colstart];
+          locks[colstart].unlock();
+          
+          // decrement the latch
+          latch.countDown();
+        } else if (colend - colstart <= 1) { // split up a row
           int mid = (rowend + rowstart)/2;
           exc.submit(new TinyTask(rowstart, mid, colstart, colend, exc));
           exc.submit(new TinyTask(mid, rowend, colstart, colend, exc));
-        } else {
+        } else { // split up columns
           int mid = (colend + colstart)/2;
           exc.submit(new TinyTask(rowstart, rowend, colstart, mid, exc));
           exc.submit(new TinyTask(rowstart, rowend, mid, colend, exc));
         }
       }
-      
     }
     
     ExecutorService exc = Executors.newCachedThreadPool();
-    TinyTask tt = new TinyTask(0, x.length, 0, x.length, exc);
-    tt.run();
-    //exc.shutdown();
-//    try {
-//      //exc.awaitTermination(240, TimeUnit.SECONDS);
-//    } catch (InterruptedException e) {
-//      // e.printStackTrace();
-//    }
-    return qq;
+    exc.execute(new TinyTask(0, x.length, 0, x.length, exc));
     
-    
-    
-    
-    
-    
-    
-    
-    // each task is responsible for computing one element of the product vector
-//    ExecutorService executor = Executors.newCachedThreadPool(); // newFixedThreadPool(r.length * r.length);
-//    ArrayList<Future<Double>> futures;
-//    futures = new ArrayList<Future<Double>>();
-////    CompletionService<Double> completionService = new ExecutorCompletionService<Double>(executor);
-//    for(int i = 0; i < r.length; i++) {
-//      futures.add(executor.submit(new DotProductTask(a[i], x, 0, x.length, executor)));
-//    }
-//    
-//    // shut down the thread pool manager and wait for the last task to complete
-////    executor.shutdown();
-////    try {
-////      executor.awaitTermination(120, TimeUnit.SECONDS);
-////    } catch (InterruptedException e) {
-////      e.printStackTrace();
-////    }
-//    
-//    for (int i = 0; i < r.length; i++) {
-//      // System.out.println("getting futures at " + i);
-//      r[i] = futures.get(i).get();
-//    }
-//    executor.shutdown();
-    // return r;
-  }
-  
-  //computes the dot product of a[row] and x, from start to finish.
-  static class DotProductTask implements Callable<Double> {
-    double[] a, b;
-    int start, end;
-    ExecutorService exc;
-
-    // constructor
-    public DotProductTask(double[] a, double[] b, int start, int end, ExecutorService exc) {
-      this.a = a;
-      this.b = b;
-      this.start = start;
-      this.end = end;
-      this.exc = exc;
+    // wait for latch, shut down the executor, then return.
+    try {
+      latch.await();
+      exc.shutdown();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
-
-    public Double call() throws InterruptedException, ExecutionException {
-      // dot product of a[row] and x
-      long id = Thread.currentThread().getId();
-      
-      // base case
-      if (end - start == 1) {
-        return a[start] * b[start];
-      } else {
-        // recursive case, split the dot product into 2 dot product tasks
-        int mid = (start + end) / 2;
-//        double[] a1 = Arrays.copyOfRange(a, 0, mid);
-//        double[] a2 = Arrays.copyOfRange(a, mid, a.length);
-//        double[] b1 = Arrays.copyOfRange(b, 0, mid);
-//        double[] b2 = Arrays.copyOfRange(b, mid, b.length);
-        
-        Future<Double> fut1 = exc.submit(new DotProductTask(a, b, start, mid, exc));
-        Future<Double> fut2 = exc.submit(new DotProductTask(a, b, mid, end, exc));
-        
-        return fut1.get() + fut2.get();
-      }
-    }
+    return r;
   }
 }
